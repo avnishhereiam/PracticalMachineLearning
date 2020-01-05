@@ -1,0 +1,111 @@
+---
+title: "Course Project | Fit data prediction"
+author: "Avnish"
+date: "05/01/2020"
+output: html_document
+---
+**Overwiew** 
+In todays time exercise is something everyone is including in their routine and quntifying how much exercise they are doing. Rarely, we see someone thinking about how well they are doing particular exercise.
+
+In this project we are doing prediction on accelerometer data tied on the belt,forearm,arm and dumbell of 6 participants.
+
+Our goal is to predict quality of exercise .Classe varibale contains information about quality of exercise. 'Type A' is correct exercise and rest of them have some error in it.
+
+# Loading Data and required packages.
+```{r, message=FALSE}
+library(caret)
+library(corrplot)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+data=read.csv("pml-training.csv")
+testing=read.csv("pml-testing.csv")
+dim(data)
+summary(data)
+```
+There are so many variables having huge amount of either NA values or missing values.
+
+# Data Cleaning
+## Removing columns having more than 90 % of missing or NA values.
+```{r, message=FALSE}
+coltoremove=which(colSums(is.na(data)|data=="")>0.9*dim(data)[1])
+traindata=data[,-coltoremove]
+str(traindata)
+```
+## Removing columns we don't need as feature.
+```{r, message=FALSE}
+traindata=traindata[,-c(1:7)]
+str(traindata)
+```
+
+# Creating dataset
+```{r, message=FALSE}
+set.seed(10)
+intrain=createDataPartition(traindata$classe,p=0.7,list = FALSE)
+training=traindata[intrain,]
+validation=traindata[-intrain,]
+dim(training)
+dim(validation)
+```
+
+# Exploration
+```{r, message=FALSE}
+cort=cor(training[,-53])
+corrplot(cort,order = "FPC",method = "color",type = "upper",tl.cex = 0.8)
+```
+
+## Highly correlated varibales
+```{r, message=FALSE}
+highlycorrelate=findCorrelation(cort, cutoff = 0.75)
+names(training[highlycorrelate])
+```
+
+# Models
+
+## 1. Classification Tree Model
+```{r, cache=TRUE}
+set.seed(10)
+model1=rpart(classe~.,data = training,method="class")
+fancyRpartPlot(model1)
+predict1=predict(model1,validation,type = "class")
+matrix1=confusionMatrix(predict1,validation$classe)
+matrix1
+```
+
+## 2. Random Forest
+```{r, cache=TRUE}
+control=trainControl(method = "cv",number = 3,verboseIter = FALSE)
+model2=train(classe~.,data = training,method="rf", trControl=control)
+predict2=predict(model2,newdata=validation)
+matrix2=confusionMatrix(predict2,validation$classe)
+plot(model2)
+matrix2
+```
+## 3. Genralized Boosted Model (GBM)
+```{r, cache=TRUE, results='hide'}
+control=trainControl(method = "repeatedcv",number = 3,repeats = 3)
+model3=train(classe~.,data = training,method="gbm", trControl=control)
+predict3=predict(model3,newdata=validation)
+matrix3=confusionMatrix(predict3,validation$classe)
+
+```
+
+```{r}
+plot(model3)
+matrix3
+```
+
+# Accuracy Summary
+```{r}
+Final=data.frame("Model"=c("Classification Tree","Random Forest", "GBM"),"Accuracy"=c(matrix1$overall["Accuracy"],matrix2$overall["Accuracy"],matrix3$overall["Accuracy"]))
+Final
+```
+We see Random forest gives us the best accuracy model, hence we are opting model2(Random forest)
+
+# Final validation on test data
+```{r}
+result = predict(model2,newdata  =testing)
+
+result
+```
+
